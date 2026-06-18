@@ -6,17 +6,15 @@
 # worker are written in different languages and only share the 32-byte secret;
 # the server never sees plaintext and cannot link the two.
 #
-# Needs a reachable MySQL/MariaDB (defaults below match README's local setup).
+# Needs only a local `php` — no database. The server writes blobs to a temp dir.
 # Run from the repo root:  bash examples/demo.sh
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-# Database for the demo server (override via the environment if needed).
-export BDDPHP_DSN="${BDDPHP_DSN:-mysql:host=127.0.0.1;dbname=bddphp;charset=utf8mb4}"
-export BDDPHP_DB_USER="${BDDPHP_DB_USER:-bddphp}"
-export BDDPHP_DB_PASS="${BDDPHP_DB_PASS:-bddphp}"
+# Throwaway storage for the demo server (cleaned up on exit).
+export BDDPHP_DATA_DIR="${BDDPHP_DATA_DIR:-$(mktemp -d)}"
 
 PORT="${PORT:-18491}"
 PY="python3 examples/python/example.py"
@@ -26,6 +24,7 @@ C="--port $PORT --scheme http"
 
 cleanup() {
     [[ -n "${SRV:-}" ]] && kill "$SRV" 2>/dev/null || true
+    [[ -n "${BDDPHP_DATA_DIR:-}" ]] && rm -rf "$BDDPHP_DATA_DIR" || true
 }
 trap cleanup EXIT
 
@@ -33,7 +32,7 @@ say() { printf '\n\033[1m== %s ==\033[0m\n' "$*"; }
 
 # ---- setup -------------------------------------------------------------
 say "Setup"
-echo "ensuring database schema..."
+echo "preparing storage directory..."
 bin/bdd migrate
 echo "building C++ example..."
 ( cd examples/cpp && make example >/dev/null )

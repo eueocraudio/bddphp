@@ -15,10 +15,5 @@
             <directory>src</directory>
         </include>
     </source>
-    <php>
-        <!-- Point at a throwaway database; the store tests truncate it. -->
-        <env name="BDDPHP_TEST_DSN" value="mysql:host=127.0.0.1;dbname=bddphp_test;charset=ascii"/>
-        <env name="BDDPHP_TEST_USER" value="bddphp"/>
-        <env name="BDDPHP_TEST_PASS" value="bddphp"/>
-    </php>
+    <!-- No database: the store and server tests use throwaway temp directories. -->
 </phpunit>

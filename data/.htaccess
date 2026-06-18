@@ -1,0 +1,10 @@
+# Stored blobs live here. They must never be served directly over HTTP — only
+# the front controller reads them, applying expiry and the blind protocol. This
+# is defense in depth; the web-root .htaccess also routes/denies this path.
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>

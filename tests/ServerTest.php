@@ -8,33 +8,34 @@ use Bdd\Crypto;
 use Bdd\Responder;
 use Bdd\Server;
 use Bdd\Store;
-use PDO;
 use PHPUnit\Framework\TestCase;
 
 /**
  * Server routing/semantics exercised directly through Server::handle() with a
- * capturing Responder and a real test-database-backed Store — no HTTP context.
+ * capturing Responder and a filesystem-backed Store — no HTTP context, no DB.
  */
 final class ServerTest extends TestCase
 {
     private Server $server;
+    private string $dir;
 
     protected function setUp(): void
     {
-        $dsn = getenv('BDDPHP_TEST_DSN');
-        if ($dsn === false) {
-            self::markTestSkipped('BDDPHP_TEST_DSN not set');
+        $this->dir = sys_get_temp_dir() . '/bddphp_srv_' . bin2hex(random_bytes(6));
+        $this->server = new Server(new Store($this->dir));
+    }
+
+    protected function tearDown(): void
+    {
+        if (!is_dir($this->dir)) {
+            return;
         }
-        $pdo = new PDO(
-            $dsn,
-            (string) getenv('BDDPHP_TEST_USER'),
-            (string) getenv('BDDPHP_TEST_PASS'),
-            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION],
-        );
-        $store = new Store($pdo);
-        $store->migrate();
-        $pdo->exec('TRUNCATE TABLE slots');
-        $this->server = new Server($store);
+        foreach (scandir($this->dir) ?: [] as $f) {
+            if ($f !== '.' && $f !== '..') {
+                @unlink($this->dir . '/' . $f);
+            }
+        }
+        @rmdir($this->dir);
     }
 
     /** @return array{0:int,1:Responder} */

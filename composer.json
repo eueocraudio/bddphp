@@ -1,14 +1,12 @@
 {
     "name": "bdd/bddphp",
-    "description": "Blind Dead Drop — a blind HTTP dead-drop server in PHP 8.4 with MySQL storage",
+    "description": "Blind Dead Drop — a blind HTTP dead-drop server in PHP 8.4 with filesystem storage",
     "type": "project",
     "license": "MIT",
     "require": {
         "php": ">=8.4",
         "ext-openssl": "*",
         "ext-hash": "*",
-        "ext-pdo": "*",
-        "ext-pdo_mysql": "*",
         "ext-curl": "*"
     },
     "require-dev": {

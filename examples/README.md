@@ -41,16 +41,15 @@ bash examples/demo.sh
 ```
 
 Ele compila o cliente C++ automaticamente e pula a etapa PHP graciosamente se não
-houver runtime `php`. A demo precisa de um MySQL/MariaDB acessível — por padrão
-usa `bddphp`/`bddphp` no banco `bddphp` (sobrescreva com as variáveis
-`BDDPHP_DSN`/`BDDPHP_DB_USER`/`BDDPHP_DB_PASS`).
+houver runtime `php`. A demo só precisa de um `php` local — **sem banco de
+dados**; o servidor grava os blobs em `./data` (sobrescreva o local com
+`BDDPHP_DATA_DIR`).
 
 ## Preparação compartilhada (manual)
 
 ```bash
 # a partir da raiz do repo
-bin/bdd migrate                              # cria a tabela (lê seu .env)
-bin/bdd serve --port 8080 &                  # servidor HTTP local
+bin/bdd serve --port 8080 &                  # servidor HTTP local (cria ./data sozinho)
 export BDD_SECRET=$(bin/bdd keygen)
 ```
 

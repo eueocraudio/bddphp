@@ -1,0 +1,5 @@
+# Keep the data directory (and its deny rule) in git, but never the runtime
+# blobs written into it.
+*
+!.gitignore
+!.htaccess

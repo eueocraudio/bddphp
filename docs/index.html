@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>bddphp — Blind Dead Drop (PHP + MySQL)</title>
+<title>bddphp — Blind Dead Drop (PHP)</title>
 <style>
   :root {
     --bg: #0e1116; --panel: #161b22; --panel2: #1c2330; --line: #2a3340;
@@ -89,7 +89,7 @@
 
 <header class="hero">
   <div class="wrap">
-    <span class="tag">Blind Dead Drop · PHP + MySQL</span>
+    <span class="tag">Blind Dead Drop · PHP</span>
     <h1>bddphp <small>— um servidor que não consegue ler suas mensagens</small></h1>
     <p class="lede">Duas pessoas trocam mensagens através de um relay que guarda
     apenas blobs opacos em endereços opacos. Ele nunca vê o conteúdo, não sabe quem
@@ -138,7 +138,7 @@
     abri-lo, não sabe quem o deixou nem quem o pegou, e não consegue ligar dois
     pacotes como pertencentes à mesma troca.</p>
     <p>É exatamente esse o modelo de ameaça aqui. O servidor é um armazenamento
-    chave→valor burro e cego (uma única tabela MySQL), acessível por HTTP(S). Os dois
+    chave→valor burro e cego (um diretório de arquivos), acessível por HTTP(S). Os dois
     clientes compartilham um único segredo por um canal externo e derivam todo o
     resto a partir dele.</p>
     <div class="grid">
@@ -195,9 +195,8 @@ chave    = HKDF(segredo, "bdd-key|&lt;parte&gt;|&lt;canal&gt;")    → 32 bytes<
     <h2><span class="hash">#</span>Início rápido</h2>
     <p>Localmente, o servidor embutido fala <strong>HTTP</strong> (o
     <code>php -S</code> não faz TLS — em produção o TLS fica num proxy reverso ou
-    serviço onion na frente). Precisa de PHP 8.4+ e um MySQL/MariaDB.</p>
-    <pre><code># 1. Cria o schema (lê o .env do projeto) e sobe o servidor cego
-bin/bdd migrate
+    serviço onion na frente). Precisa de PHP 8.4+ — sem banco de dados.</p>
+    <pre><code># 1. Sobe o servidor cego (cria ./data sozinho no primeiro uso)
 bin/bdd serve --port 8080
 
 # 2. Um segredo compartilhado que as duas partes guardam (32 bytes, hex)
@@ -381,7 +380,7 @@ reply-upper     # worker: long-poll num request, processa e responde</code></pre
 
 <footer>
   <div class="wrap">
-    bddphp — Blind Dead Drop · servidor PHP 8.4 + MySQL, clientes em várias linguagens ·
+    bddphp — Blind Dead Drop · servidor PHP 8.4, clientes em várias linguagens ·
     veja <code>README.md</code> e <code>examples/</code> no repositório.
   </div>
 </footer>

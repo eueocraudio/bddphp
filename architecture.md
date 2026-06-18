@@ -21,7 +21,7 @@ trabalho, veja [`CLAUDE.md`](CLAUDE.md).
 ```
    CLIENTE (confiável)                    SERVIDOR (não confiável, cego)
    ──────────────────                     ──────────────────────────────
-   segredo-raiz (32B)                     tabela MySQL: slots(address, payload, expires_at)
+   segredo-raiz (32B)                     diretório de arquivos: data/<address> (1 blob/endereço)
    deriva endereço+chave (HKDF)           só vê: hex de 64, bytes cifrados, balde de expiração
    sela/abre (ChaCha20-Poly1305)   ──▶    PUT/GET/DELETE /v1/slot/<address>
    (único a ver plaintext)                (nunca tem o segredo nem plaintext)
@@ -33,12 +33,12 @@ trabalho, veja [`CLAUDE.md`](CLAUDE.md).
 |---|---|
 | `Crypto.php` | Wrappers finos: `hkdf()` (via `hash_hkdf`), `seal()/open()` (via `openssl_*`). Fixa o formato `nonce‖tag‖ciphertext`, AAD vazio. |
 | `Protocol.php` | Regras compartilhadas do cliente: `slotAddress()`, `messageKey()`, `seal()`, `open()`. Define `PARTS = [request, response]` e os rótulos HKDF. |
-| `Store.php` | Armazém de blobs em MySQL (PDO). `put` (escrita única via `SELECT … FOR UPDATE`), `get` (expiração preguiçosa), `getBlocking` (long-poll por polling), `delete`, `sweep`, `migrate`, `isValidAddress`. |
+| `Store.php` | Armazém de blobs em arquivos (um por endereço sob `data/`). `put` (escrita única via temp + `rename` atômico), `get` (expiração preguiçosa via mtime), `getBlocking` (long-poll por polling — `stat` local), `delete`, `sweep`, `init`, `isValidAddress`. |
 | `Server.php` | Roteamento/semântica HTTP, independente do contexto. `handle()` retorna o status; conhece `TTL_BUCKETS`, `MAX_WAIT`, `MAX_BLOB`, `snapTtl()`, e a página inicial de `GET /`. |
 | `Responder.php` | Emite a resposta suprimindo metadados (`X-Powered-By`). Em modo "capture" grava a resposta em vez de enviar — usado nos testes. |
 | `Client.php` | Cliente HTTP (extensão curl): `send`/`receive`/`waitReceive`/`purge`. Único componente que segura o segredo. `http`/`https` + `--insecure`/`--cafile`. |
 | `Cli.php` + `bin/bdd` | CLI: `serve`, `migrate`, `keygen`, `send`, `recv`. Segredo via `--secret`/`BDD_SECRET`. |
-| `Config.php` + `Env.php` | Config de servidor/DB a partir do ambiente ou de um `.env` **local** (nunca `~/.env`). Aceita `BDDPHP_*` ou o esquema `MYSQL_*_BDD`. |
+| `Config.php` + `Env.php` | Config de servidor/storage a partir do ambiente ou de um `.env` **local** (nunca `~/.env`). `BDDPHP_DATA_DIR` (default `./data`) e `BDDPHP_DEFAULT_TTL`; sem banco, sem credenciais. |
 | `autoload.php` | Carregador: prefere o Composer; senão, um PSR-4 mínimo para `Bdd\`. |
 
 Fora de `src/`:
@@ -54,12 +54,17 @@ Fora de `src/`:
 
 ## Decisões de porte (vs. o `bdd` original em Python)
 
-- **Armazenamento: sistema de arquivos → MySQL.** Uma tabela
-  `slots(address CHAR(64), payload LONGBLOB, expires_at BIGINT)`. A expiração é a
-  coluna `expires_at` (epoch), não o mtime de um arquivo.
+- **Armazenamento: sistema de arquivos (como o original).** Um arquivo por slot,
+  `data/<address>`, com o blob como conteúdo e a expiração codificada no **mtime**.
+  Um port anterior usou MySQL, mas o host de produção tem limites apertados de
+  conexão/consulta, então voltou-se ao disco — zero banco, e rotas que não tocam
+  slot não tocam storage. (Ressalva: o mtime carrega só a expiração bucketizada,
+  mas o ctime do inode reflete o instante real de escrita a quem tem acesso ao
+  filesystem — pequena regressão de cegueira, fora do threat model HTTP.)
 - **Long-poll: condvar → polling.** O original acordava leitores via
-  `threading.Condition`. Sem primitivo equivalente entre conexões no MySQL,
-  `getBlocking()` consulta `get()` num intervalo fixo até o deadline.
+  `threading.Condition`. Sem primitivo de wakeup no filesystem, `getBlocking()`
+  consulta `get()` num intervalo fixo até o deadline (cada poll é um `stat`
+  local, não uma ida ao banco).
 - **TLS: embutido → na frente.** O servidor embutido do PHP não faz TLS, então o
   modo canônico é HTTP atrás de um proxy reverso / serviço onion (era o modo
   `--no-tls` do original). O conteúdo já é cifrado ponta a ponta.
@@ -69,12 +74,17 @@ Fora de `src/`:
 
 ## Escrita única e concorrência
 
-`put()` abre uma transação, faz `SELECT expires_at … FOR UPDATE` no endereço:
-- linha existente e **não expirada** → recusa (`409`);
-- ausente ou **expirada** → `INSERT … ON DUPLICATE KEY UPDATE` (republica) → `201`.
+`put()` checa o mtime do arquivo no endereço:
+- arquivo existente e **não expirado** → recusa (`409`);
+- ausente ou **expirado** → grava um temp com o blob e o mtime de expiração, e o
+  `rename()` para o nome final (atômico) → `201`. O leitor só vê o blob completo,
+  com a expiração certa, sob o nome final.
 
-O lock de linha serializa `PUT`s concorrentes no mesmo endereço, preservando a
-semântica de escrita única sob carga.
+A janela entre a checagem e o `rename` tem um TOCTOU benigno (dois escritores
+disputando um endereço novo/expirado: o último vence). Como os endereços são
+segredos não-adivinháveis, isso é tão "escrita única" quanto o modelo dead-drop
+precisa. Arquivos temporários órfãos (publicação interrompida) são `.tmp.<rand>`
+e o `sweep()` os recolhe.
 
 ## Topologia de implantação
 
@@ -88,23 +98,29 @@ navegador / cliente
         │  .htaccess: DirectoryIndex index.html index.php
         ├── "/"        → index.html (docs estáticas)
         ├── "/v1/..."  → index.php  → Bdd\Server → Bdd\Store
-        └── src/, .env → 403 (negado)
-        │  PDO
-        ▼
-   MySQL remoto (mesma hospedagem)
+        │                                   │  read/write
+        │                                   ▼
+        │                            data/<address> (arquivos no mesmo host)
+        └── src/, data/, .env → 403 (negado)
 ```
 
 `deploy.sh` monta esse layout (front controller + `.htaccess` + `index.html` +
-`src/` + `.env` gerado + `bddphp-examples.zip`) e o espelha por FTP, lendo
-credenciais da seção "BDD PHP" do `~/.env`. Detalhe do host: o domínio de preview
-serve a partir do diretório de pouso do FTP (não `public_html`), então o deploy
-usa `BDD_REMOTE_DIR=.`. Segredos nunca entram no repositório.
+`src/` + o diretório `data/` gravável + `.env` + `bddphp-examples.zip`) e o
+espelha por FTP, lendo credenciais da seção "BDD PHP" do `~/.env`. O espelhamento
+**exclui `data/`** (só republica seu `.htaccess`), então um deploy nunca apaga os
+blobs vivos. Detalhe do host: o domínio de preview serve a partir do diretório de
+pouso do FTP (não `public_html`), então o deploy usa `BDD_REMOTE_DIR=.`. Segredos
+nunca entram no repositório.
 
 ## Invariantes (não quebrar)
 
 - O servidor permanece cego: nada de logar corpos/peers/ligações; nunca dar a ele
   o segredo ou plaintext.
 - Espaço de endereço = 64 hex minúsculos; toda leitura de caminho passa por
-  `Store::isValidAddress` / a regex de rota.
+  `Store::isValidAddress` / a regex de rota (é o que também torna o endereço
+  seguro como nome de arquivo: sem `/`, sem `..`).
+- O diretório `data/` é gravável pela web mas **nunca servível** por ela: servir
+  um blob direto furaria a expiração e o front controller. O `data/.htaccess` e o
+  bloqueio de `data/` no `.htaccess` da raiz protegem isso.
 - O formato de fio e os rótulos HKDF são um contrato entre linguagens — mudá-los
   quebra a interoperabilidade; os testes de vetores das RFCs protegem isso.

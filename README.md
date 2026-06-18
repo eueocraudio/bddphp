@@ -1,4 +1,4 @@
-# bddphp — Blind Dead Drop (PHP + MySQL)
+# bddphp — Blind Dead Drop (PHP)
 
 Um **dead drop cego**: um pequeno serviço HTTP onde duas partes trocam mensagens
 através de um servidor que não aprende *nada*. O servidor só guarda blobs opacos
@@ -6,12 +6,12 @@ em endereços opacos — não consegue ler o conteúdo da mensagem, nem ligar re
 response ou uma parte à outra. Toda a confidencialidade e a impossibilidade de
 correlação vivem no cliente.
 
-Esta é uma porta em **PHP 8.4 + MySQL** do `bdd` original (em Python). O formato
-de fio e os rótulos de derivação são os mesmos, então ele interopera com os
-clientes de referência das outras linguagens. A criptografia do lado do cliente —
-AEAD ChaCha20-Poly1305 (RFC 8439) e HKDF-SHA256 (RFC 5869) — usa os primitivos
-auditados embutidos no PHP (OpenSSL e `hash_hkdf`), e o armazenamento é uma única
-tabela MySQL no lugar do sistema de arquivos.
+Esta é uma porta em **PHP 8.4** do `bdd` original (em Python). O formato de fio e
+os rótulos de derivação são os mesmos, então ele interopera com os clientes de
+referência das outras linguagens. A criptografia do lado do cliente — AEAD
+ChaCha20-Poly1305 (RFC 8439) e HKDF-SHA256 (RFC 5869) — usa os primitivos
+auditados embutidos no PHP (OpenSSL e `hash_hkdf`), e o armazenamento é um
+**diretório de arquivos** (um blob por endereço) — sem banco de dados.
 
 > Os clientes de exemplo em `examples/` incluem reimplementações do zero (em
 > Python e C++) dos mesmos primitivos, validadas contra os vetores das RFCs, para
@@ -47,17 +47,17 @@ vê endereços e ciphertext aleatórios.
 ./install.sh          # checa PHP/extensões, instala deps de dev, escreve .env, roda os testes
 ```
 
-Requer PHP **8.4+** com as extensões `openssl`, `pdo_mysql`, `hash` e `curl`, mais
-MySQL/MariaDB. O Composer é opcional (só para os testes; o app em si roda de um
-checkout novo, sem `composer install`). Depois, crie o schema (importe
-`schema.sql` na sua ferramenta de banco, ou):
+Requer PHP **8.4+** com as extensões `openssl`, `hash` e `curl` — **sem banco de
+dados**. O Composer é opcional (só para os testes; o app em si roda de um checkout
+novo, sem `composer install`). O diretório de storage é criado no primeiro uso;
+opcionalmente, prepare-o de antemão:
 
 ```bash
-bin/bdd migrate       # CREATE TABLE IF NOT EXISTS usando o banco configurado
+bin/bdd migrate       # cria ./data e seu .htaccess de deny
 ```
 
-A configuração vem de um `.env` local do projeto (veja `.env.example`) — defina
-`BDDPHP_DSN`/`BDDPHP_DB_USER`/`BDDPHP_DB_PASS` ou as peças `MYSQL_*_BDD`.
+A configuração vem de um `.env` local do projeto (veja `.env.example`) — só
+`BDDPHP_DATA_DIR` (default `./data`) e `BDDPHP_DEFAULT_TTL`, ambos opcionais.
 
 ## Endpoints
 
@@ -120,8 +120,10 @@ frente — por exemplo, o site de produção.
 ## Implantação (hospedagem compartilhada)
 
 `deploy.sh` espelha um layout `public_html` (front controller + `.htaccess` +
-`src/` + `docs/index.html` + um `.env` gerado) para o host por FTP, lendo as
-credenciais da seção "BDD PHP" do `~/.env`. Nunca guarda segredos no repositório.
+`src/` + `docs/index.html` + o diretório `data/` gravável + um `.env`) para o host
+por FTP, lendo as credenciais da seção "BDD PHP" do `~/.env`. Nunca guarda
+segredos no repositório. O espelhamento **exclui `data/`**, então um deploy nunca
+apaga os blobs em produção — só republica o `data/.htaccess`.
 
 ```bash
 ./deploy.sh --dry-run    # monta e inspeciona a árvore de staging, não envia nada
@@ -130,8 +132,8 @@ credenciais da seção "BDD PHP" do `~/.env`. Nunca guarda segredos no repositó
 
 Em hospedagem compartilhada não há processo de longa duração: o servidor web do
 host roda o front controller a cada requisição, e o `.htaccess` roteia `/v1/...`
-até ele (e serve `docs/index.html` na raiz). Importe `schema.sql` uma vez pela
-ferramenta de banco do host (ex.: phpMyAdmin).
+até ele (e serve `docs/index.html` na raiz). Não há banco a configurar — o
+diretório `data/` é criado no primeiro uso e fica negado ao acesso web direto.
 
 ## Exemplos
 
@@ -142,6 +144,6 @@ entre linguagens. Veja [`examples/README.md`](examples/README.md).
 ## Testes
 
 ```bash
-composer test          # PHPUnit (precisa de um banco de teste acessível; veja phpunit.xml)
-php tests/selftest.php  # vetores RFC de cripto/protocolo, sem banco
+composer test          # PHPUnit completo — sem banco, usa diretórios temporários
+php tests/selftest.php  # vetores RFC de cripto/protocolo, sem storage
 ```

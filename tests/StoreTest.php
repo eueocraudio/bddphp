@@ -5,33 +5,41 @@ declare(strict_types=1);
 namespace Bdd\Tests;
 
 use Bdd\Store;
-use PDO;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Store behaviour against a real MySQL/MariaDB test database (configured via
- * BDDPHP_TEST_* env in phpunit.xml). Each test starts from an empty table.
+ * Store behaviour against a throwaway filesystem directory. No database, so no
+ * configuration or skips: each test starts from an empty, private temp dir.
  */
 final class StoreTest extends TestCase
 {
-    private PDO $pdo;
+    private string $dir;
     private Store $store;
 
     protected function setUp(): void
     {
-        $dsn = getenv('BDDPHP_TEST_DSN');
-        if ($dsn === false) {
-            self::markTestSkipped('BDDPHP_TEST_DSN not set');
+        $this->dir = sys_get_temp_dir() . '/bddphp_store_' . bin2hex(random_bytes(6));
+        $this->store = new Store($this->dir);
+    }
+
+    protected function tearDown(): void
+    {
+        self::rmrf($this->dir);
+    }
+
+    private static function rmrf(string $d): void
+    {
+        if (!is_dir($d)) {
+            return;
         }
-        $this->pdo = new PDO(
-            $dsn,
-            (string) getenv('BDDPHP_TEST_USER'),
-            (string) getenv('BDDPHP_TEST_PASS'),
-            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION],
-        );
-        $this->store = new Store($this->pdo);
-        $this->store->migrate();
-        $this->pdo->exec('TRUNCATE TABLE slots');
+        foreach (scandir($d) ?: [] as $f) {
+            if ($f === '.' || $f === '..') {
+                continue;
+            }
+            $p = "$d/$f";
+            is_dir($p) ? self::rmrf($p) : @unlink($p);
+        }
+        @rmdir($d);
     }
 
     private function addr(string $seed): string

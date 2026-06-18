@@ -19,10 +19,11 @@ for arg in "$@"; do
     esac
 done
 
-# Required runtime: PHP 8.4 with the openssl, pdo_mysql, hash and curl extensions.
+# Required runtime: PHP 8.4 with the openssl, hash and curl extensions.
+# Storage is a directory of files — no database extension needed.
 php -r 'exit(PHP_VERSION_ID >= 80400 ? 0 : 1);' \
     || { echo "error: PHP >= 8.4 required (have $(php -r 'echo PHP_VERSION;'))" >&2; exit 1; }
-for ext in openssl pdo_mysql hash curl; do
+for ext in openssl hash curl; do
     php -r "exit(extension_loaded('$ext') ? 0 : 1);" \
         || { echo "error: missing PHP extension: $ext" >&2; exit 1; }
 done
@@ -34,14 +35,14 @@ else
     echo "         but PHPUnit is unavailable, so tests are limited to the selftest." >&2
 fi
 
-[[ -f .env ]] || { cp .env.example .env; echo "wrote .env (edit it for your database)"; }
+[[ -f .env ]] || { cp .env.example .env; echo "wrote .env (defaults are fine for local dev)"; }
 
-# Crypto/protocol vectors — no database needed.
+# Crypto/protocol vectors — no storage needed.
 php tests/selftest.php
 
 if [[ "$RUN_TEST" == 1 && -x vendor/bin/phpunit ]]; then
-    echo "running phpunit (needs a reachable test database; see phpunit.xml)..."
-    vendor/bin/phpunit || echo "phpunit failed — is the test database configured?" >&2
+    echo "running phpunit (uses throwaway temp directories; no database)..."
+    vendor/bin/phpunit || echo "phpunit failed" >&2
 fi
 
 echo "done."

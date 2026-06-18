@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * Standalone crypto vector check — no Composer, no MySQL required.
+ * Standalone crypto vector check — no Composer, no storage required.
  *   php tests/selftest.php
  *
  * Pins the HKDF-SHA256 and ChaCha20-Poly1305 byte layout against RFC vectors,

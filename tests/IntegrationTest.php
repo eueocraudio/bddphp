@@ -6,13 +6,12 @@ namespace Bdd\Tests;
 
 use Bdd\Client;
 use Bdd\Protocol;
-use PDO;
 use PHPUnit\Framework\TestCase;
 
 /**
  * End-to-end: a real php built-in server process + the curl Client, talking
- * over a local socket against the test database. Proves the blind round trip
- * (request/response unlinkable parts) works across the wire.
+ * over a local socket against a throwaway data directory. Proves the blind
+ * round trip (request/response unlinkable parts) works across the wire.
  */
 final class IntegrationTest extends TestCase
 {
@@ -20,32 +19,19 @@ final class IntegrationTest extends TestCase
     private $proc = null;
     private int $pid = 0;
     private int $port = 0;
+    private string $dataDir = '';
 
     protected function setUp(): void
     {
-        $dsn = getenv('BDDPHP_TEST_DSN');
-        if ($dsn === false) {
-            self::markTestSkipped('BDDPHP_TEST_DSN not set');
-        }
         if (!function_exists('proc_open') || !function_exists('posix_kill')) {
             self::markTestSkipped('proc_open/posix required for live server tests');
         }
-        // Fresh table.
-        $pdo = new PDO($dsn, (string) getenv('BDDPHP_TEST_USER'), (string) getenv('BDDPHP_TEST_PASS'),
-            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-        $pdo->exec(
-            'CREATE TABLE IF NOT EXISTS slots (address CHAR(64) CHARACTER SET ascii COLLATE ascii_bin ' .
-            'NOT NULL PRIMARY KEY, payload LONGBLOB NOT NULL, expires_at BIGINT UNSIGNED NOT NULL, ' .
-            'KEY idx_expires (expires_at)) ENGINE=InnoDB'
-        );
-        $pdo->exec('TRUNCATE TABLE slots');
+        $this->dataDir = sys_get_temp_dir() . '/bddphp_int_' . bin2hex(random_bytes(6));
 
         $this->port = random_int(20000, 40000);
         $router = dirname(__DIR__) . '/public/index.php';
         $env = [
-            'BDDPHP_DSN' => $dsn,
-            'BDDPHP_DB_USER' => (string) getenv('BDDPHP_TEST_USER'),
-            'BDDPHP_DB_PASS' => (string) getenv('BDDPHP_TEST_PASS'),
+            'BDDPHP_DATA_DIR' => $this->dataDir,
             // Several workers so a held long-poll request doesn't starve others.
             'PHP_CLI_SERVER_WORKERS' => '4',
             'PATH' => getenv('PATH') ?: '/usr/bin',
@@ -69,6 +55,14 @@ final class IntegrationTest extends TestCase
         }
         if (is_resource($this->proc)) {
             proc_close($this->proc);
+        }
+        if ($this->dataDir !== '' && is_dir($this->dataDir)) {
+            foreach (scandir($this->dataDir) ?: [] as $f) {
+                if ($f !== '.' && $f !== '..') {
+                    @unlink($this->dataDir . '/' . $f);
+                }
+            }
+            @rmdir($this->dataDir);
         }
     }
 

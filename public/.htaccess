@@ -17,8 +17,8 @@ php_flag expose_php Off
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
-    # Block direct access to application internals and secrets.
-    RewriteRule ^(src|tests|vendor|bin)/ - [F,L]
+    # Block direct access to application internals, stored blobs, and secrets.
+    RewriteRule ^(src|tests|vendor|bin|data)/ - [F,L]
     RewriteRule (^|/)\.env(\.|$) - [F,L]
     RewriteRule (^|/)composer\.(json|lock)$ - [F,L]
 

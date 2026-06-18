@@ -8,13 +8,13 @@ namespace Bdd;
  * Command-line interface for bddphp.
  *
  *   bdd serve   [--host H] [--port N] [--ttl S]
- *   bdd migrate                         # create the slots table
+ *   bdd migrate                         # create the storage directory
  *   bdd keygen                          # print a fresh 32-byte hex secret
  *   bdd send    --part P --channel N [--message M | --file F] [--ttl S]
  *   bdd recv    --part P --channel N [--wait] [--timeout S] [--purge]
  *
  * The root secret comes from --secret or the BDD_SECRET environment variable.
- * Server/database settings come from the BDDPHP_* environment variables (Config).
+ * Server/storage settings come from the BDDPHP_* environment variables (Config).
  */
 final class Cli
 {
@@ -43,7 +43,7 @@ final class Cli
         usage: bdd <command> [options]
 
           serve   [--host H] [--port N] [--ttl S]   run the blind HTTP server
-          migrate                                   create the database schema
+          migrate                                   create the storage directory
           keygen                                    print a fresh root secret
           send    --part request|response --channel N [--message M | --file F] [--ttl S]
           recv    --part request|response --channel N [--wait] [--timeout S] [--purge]
@@ -88,8 +88,8 @@ final class Cli
 
     private function migrate(): int
     {
-        Config::fromEnv()->store()->migrate();
-        fwrite(STDERR, "schema ready\n");
+        Config::fromEnv()->store()->init();
+        fwrite(STDERR, "storage ready\n");
         return 0;
     }
 

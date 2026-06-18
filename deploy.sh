@@ -2,12 +2,13 @@
 # Deploy bddphp to the shared host over FTP.
 #
 # Reads credentials from ~/.env (the "BDD PHP" section): FTP_HOST_BDD,
-# FTP_USER_BDD, FTP_PASS_BDD and the MYSQL_*_BDD database settings. Nothing
-# secret is stored in the repo.
+# FTP_USER_BDD, FTP_PASS_BDD. Storage is a directory of files on the host — no
+# database — so there are no DB credentials to handle. Nothing secret is in the
+# repo.
 #
-# It stages the public_html layout (front controller + .htaccess + src/, plus a
-# generated .env carrying the DB settings) and mirrors it to the host. The
-# server is plain PHP behind the host's web server; message content is already
+# It stages the public_html layout (front controller + .htaccess + src/ + a
+# writable data/ dir, denied to the web) and mirrors it to the host. The server
+# is plain PHP behind the host's web server; message content is already
 # end-to-end encrypted, so HTTPS is provided by the host, not the app.
 #
 #   ./deploy.sh            # build staging and upload
@@ -29,10 +30,6 @@ get() { grep -E "^$1=" "$ENV_FILE" | head -n1 | cut -d= -f2-; }
 FTP_HOST="$(get FTP_HOST_BDD)"
 FTP_USER="$(get FTP_USER_BDD)"
 FTP_PASS="$(get FTP_PASS_BDD)"
-MYSQL_HOST="$(get MYSQL_HOST_BDD)"
-MYSQL_DATA="$(get MYSQL_DATA_BDD)"
-MYSQL_USER="$(get MYSQL_USER_BDD)"
-MYSQL_PASS="$(get MYSQL_PASS_BDD)"
 
 FTP_HOST="${FTP_HOST#ftp://}"
 [[ -n "$FTP_HOST" && -n "$FTP_USER" && -n "$FTP_PASS" ]] \
@@ -62,13 +59,17 @@ else
     echo "warning: zip not found and no prebuilt bundle — skipping examples .zip" >&2
 fi
 
-# Generated production .env (denied by .htaccess). Charset utf8mb4 for the host.
+# Writable storage directory, denied to the web by its own .htaccess (and by the
+# web-root .htaccess). Shipping it ensures the dir exists on a fresh host; the
+# app also creates it on first write.
+mkdir -p "$STAGE/data"
+cp "$ROOT/data/.htaccess" "$STAGE/data/.htaccess"
+
+# Minimal production .env (denied by .htaccess). No database: overwrite any
+# stale MySQL .env left by an earlier deploy. Defaults are otherwise fine.
 cat > "$STAGE/.env" <<EOF
-MYSQL_HOST_BDD=$MYSQL_HOST
-MYSQL_DATA_BDD=$MYSQL_DATA
-MYSQL_USER_BDD=$MYSQL_USER
-MYSQL_PASS_BDD=$MYSQL_PASS
-BDDPHP_DB_CHARSET=utf8mb4
+# bddphp stores blobs on disk under ./data — no database required.
+BDDPHP_DEFAULT_TTL=86400
 EOF
 chmod 600 "$STAGE/.env"
 
@@ -83,13 +84,18 @@ fi
 echo "uploading to ftp://$FTP_HOST/$REMOTE_DIR as $FTP_USER ..." >&2
 
 if command -v lftp >/dev/null; then
+    # --delete prunes stale remote files, but data/ holds live blobs the server
+    # wrote — exclude it from the mirror so a deploy never wipes messages, then
+    # ensure just its deny .htaccess is present.
     lftp -u "$FTP_USER,$FTP_PASS" "$FTP_HOST" <<EOF
 set ftp:ssl-allow true
 set ssl:verify-certificate no
 mkdir -p $REMOTE_DIR
 mirror --reverse --delete --verbose \
-    --exclude tests/ --exclude vendor/ \
+    --exclude tests/ --exclude vendor/ --exclude data/ \
     "$STAGE/" "$REMOTE_DIR/"
+mkdir -p $REMOTE_DIR/data
+put -O $REMOTE_DIR/data "$STAGE/data/.htaccess"
 bye
 EOF
 elif command -v curl >/dev/null; then
