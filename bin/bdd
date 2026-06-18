@@ -1,0 +1,8 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+require __DIR__ . '/../src/autoload.php';
+
+exit((new Bdd\Cli($argv))->run());

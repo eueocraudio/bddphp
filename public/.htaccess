@@ -1,0 +1,31 @@
+# Front-controller routing + hardening for shared hosting (Apache / LiteSpeed).
+# When deployed, this file and index.php sit at the web root (public_html) with
+# src/ beside them; everything non-static is routed to index.php, and the
+# non-public files are denied.
+
+DirectoryIndex index.html index.php
+Options -Indexes
+
+# Don't advertise PHP version (blindness at the header level; complement with
+# the host's "server_tokens"/Server-header settings where available).
+<IfModule mod_headers.c>
+    Header always unset X-Powered-By
+    Header unset X-Powered-By
+</IfModule>
+php_flag expose_php Off
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Block direct access to application internals and secrets.
+    RewriteRule ^(src|tests|vendor|bin)/ - [F,L]
+    RewriteRule (^|/)\.env(\.|$) - [F,L]
+    RewriteRule (^|/)composer\.(json|lock)$ - [F,L]
+
+    # Route every request that isn't a real file or directory to the front
+    # controller. Directories (e.g. "/") fall through to DirectoryIndex, so the
+    # static docs (index.html) are served at the root while /v1/... hits PHP.
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.php [QSA,L]
+</IfModule>

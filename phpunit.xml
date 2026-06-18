@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+         failOnWarning="true"
+         failOnNotice="true">
+    <testsuites>
+        <testsuite name="bddphp">
+            <directory>tests</directory>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <directory>src</directory>
+        </include>
+    </source>
+    <php>
+        <!-- Point at a throwaway database; the store tests truncate it. -->
+        <env name="BDDPHP_TEST_DSN" value="mysql:host=127.0.0.1;dbname=bddphp_test;charset=ascii"/>
+        <env name="BDDPHP_TEST_USER" value="bddphp"/>
+        <env name="BDDPHP_TEST_PASS" value="bddphp"/>
+    </php>
+</phpunit>

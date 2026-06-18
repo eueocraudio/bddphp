@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>bddphp — Blind Dead Drop (PHP + MySQL)</title>
+<style>
+  :root {
+    --bg: #0e1116; --panel: #161b22; --panel2: #1c2330; --line: #2a3340;
+    --fg: #e6edf3; --muted: #9aa7b4; --accent: #5ec8f8; --accent2: #7ee787;
+    --warn: #f0b35b; --danger: #ff7b72; --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  code, pre, .mono { font-family: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 0 20px; }
+  header.hero {
+    background: radial-gradient(1200px 400px at 50% -150px, #1d2b3a 0%, var(--bg) 70%);
+    border-bottom: 1px solid var(--line); padding: 64px 0 40px;
+  }
+  .tag { display: inline-block; font-size: 12px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--accent); border: 1px solid var(--line);
+    border-radius: 999px; padding: 4px 12px; margin-bottom: 18px; }
+  h1 { font-size: 42px; margin: 0 0 10px; letter-spacing: -.02em; }
+  h1 small { color: var(--muted); font-weight: 400; font-size: 20px; }
+  .lede { font-size: 19px; color: var(--muted); max-width: 680px; }
+  nav.toc { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 28px; }
+  nav.toc a { font-size: 14px; background: var(--panel); border: 1px solid var(--line);
+    padding: 6px 12px; border-radius: 999px; color: var(--fg); }
+  section { padding: 40px 0; border-bottom: 1px solid var(--line); }
+  h2 { font-size: 27px; margin: 0 0 8px; letter-spacing: -.01em; }
+  h2 .hash { color: var(--line); margin-right: 8px; }
+  h3 { font-size: 18px; margin: 26px 0 6px; }
+  p, li { color: #d3dbe3; }
+  .muted { color: var(--muted); }
+  pre { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 16px; overflow-x: auto; position: relative; }
+  pre code { font-size: 13.5px; line-height: 1.6; color: #dbe5ef; }
+  :not(pre) > code { background: var(--panel2); border: 1px solid var(--line);
+    padding: 1px 6px; border-radius: 6px; font-size: 13px; color: #cfe9ff; }
+  .copy { position: absolute; top: 8px; right: 8px; font-size: 11px; color: var(--muted);
+    background: var(--panel2); border: 1px solid var(--line); border-radius: 6px;
+    padding: 3px 8px; cursor: pointer; }
+  .copy:hover { color: var(--fg); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 680px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 16px 18px; }
+  .card h3 { margin-top: 0; }
+  .note { border-left: 3px solid var(--accent); background: #12202c;
+    padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 18px 0; }
+  .warn { border-left-color: var(--warn); background: #241d12; }
+  .danger { border-left-color: var(--danger); background: #261515; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14.5px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  td .mono { color: #cfe9ff; }
+  .method { font-weight: 700; }
+  .method.get { color: var(--accent2); } .method.put { color: var(--warn); }
+  .method.del { color: var(--danger); }
+  .flow { font-size: 13px; line-height: 1.5; }
+  .pill { display:inline-block; background:var(--panel2); border:1px solid var(--line);
+    border-radius:6px; padding:1px 7px; font-size:12px; color:var(--muted); }
+  /* interativo */
+  .tool label { display:block; font-size:13px; color:var(--muted); margin:12px 0 4px; }
+  .tool input, .tool select { width:100%; background:var(--panel); color:var(--fg);
+    border:1px solid var(--line); border-radius:8px; padding:9px 11px; font-family:inherit; font-size:14px; }
+  .tool .row { display:grid; grid-template-columns:1fr 140px 120px; gap:12px; }
+  @media (max-width:680px){ .tool .row{ grid-template-columns:1fr; } }
+  .tool button { margin-top:16px; background:var(--accent); color:#06222f; border:0;
+    border-radius:8px; padding:10px 18px; font-weight:700; cursor:pointer; font-size:14px; }
+  .tool .out { margin-top:16px; background:var(--panel2); border:1px solid var(--line);
+    border-radius:8px; padding:12px 14px; word-break:break-all; }
+  .ok { color: var(--accent2); } .bad { color: var(--danger); }
+  footer { padding: 36px 0 60px; color: var(--muted); font-size: 14px; }
+  ul.clean { list-style: none; padding-left: 0; }
+  ul.clean li { padding-left: 22px; position: relative; }
+  ul.clean li::before { content: "▸"; color: var(--accent); position: absolute; left: 0; }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="tag">Blind Dead Drop · PHP + MySQL</span>
+    <h1>bddphp <small>— um servidor que não consegue ler suas mensagens</small></h1>
+    <p class="lede">Duas pessoas trocam mensagens através de um relay que guarda
+    apenas blobs opacos em endereços opacos. Ele nunca vê o conteúdo, não sabe quem
+    fala com quem — nem mesmo que um pedido e sua resposta pertencem ao mesmo
+    diálogo. Todo o sigilo mora nos clientes.</p>
+    <nav class="toc">
+      <a href="#live">Serviço ao vivo</a>
+      <a href="#concept">Conceito</a>
+      <a href="#how">Como funciona</a>
+      <a href="#quickstart">Início rápido</a>
+      <a href="#api">Referência da API</a>
+      <a href="#explorer">Experimente</a>
+      <a href="#clients">Exemplos de cliente</a>
+    </nav>
+  </div>
+</header>
+
+<section id="live">
+  <div class="wrap">
+    <h2><span class="hash">#</span>Serviço ao vivo</h2>
+    <p>Há uma instância funcionando agora, sobre <strong>HTTPS</strong>. O conteúdo
+    continua cifrado de ponta a ponta pelo cliente — o servidor é cego; o TLS é só o
+    transporte (terminado pela hospedagem na frente do servidor PHP).</p>
+    <div class="card">
+      <div class="muted" style="font-size:12px">endpoint do serviço</div>
+      <div class="mono" style="word-break:break-all;font-size:14px;margin-top:4px">
+        https://darkgoldenrod-gnat-566022.hostingersite.com
+      </div>
+    </div>
+    <h3>Verificar que está no ar</h3>
+    <pre><code>curl -s https://darkgoldenrod-gnat-566022.hostingersite.com/v1/health
+# → {"status":"ok","ttl_buckets":[300,3600,86400,604800]}</code></pre>
+    <p class="muted">A página inicial e este documento são servidos por essa mesma
+    instância; a API vive sob <code>/v1/…</code>. Os clientes de exemplo apontam para
+    cá com <code>--scheme https --port 443</code>.</p>
+  </div>
+</section>
+
+<section id="concept">
+  <div class="wrap">
+    <h2><span class="hash">#</span>O que é um blind dead drop?</h2>
+    <p>Um <em>dead drop</em> (ponto morto) clássico é um local onde uma pessoa deixa
+    algo para outra recolher depois, sem que as duas nunca se encontrem. Um dead
+    drop <strong>cego</strong> (<em>blind</em>) acrescenta uma propriedade: o próprio
+    local — o servidor — não é confiável. Ele guarda o pacote, mas não consegue
+    abri-lo, não sabe quem o deixou nem quem o pegou, e não consegue ligar dois
+    pacotes como pertencentes à mesma troca.</p>
+    <p>É exatamente esse o modelo de ameaça aqui. O servidor é um armazenamento
+    chave→valor burro e cego (uma única tabela MySQL), acessível por HTTP(S). Os dois
+    clientes compartilham um único segredo por um canal externo e derivam todo o
+    resto a partir dele.</p>
+    <div class="grid">
+      <div class="card"><h3>O servidor só enxerga…</h3>
+        <ul class="clean">
+          <li>endereços de 64 hex com cara de aleatórios</li>
+          <li>blobs de bytes cifrados</li>
+          <li>um prazo de expiração grosseiro, em baldes</li>
+        </ul></div>
+      <div class="card"><h3>O servidor nunca enxerga…</h3>
+        <ul class="clean">
+          <li>o segredo compartilhado ou qualquer chave</li>
+          <li>qualquer mensagem em texto claro</li>
+          <li>quais blobs formam uma mesma conversa</li>
+        </ul></div>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <h2><span class="hash">#</span>Como funciona</h2>
+    <p>As duas partes compartilham um <strong>segredo raiz</strong> de 32 bytes. Um
+    slot lógico é um <strong>canal</strong> (um número) que guarda dois payloads: um
+    <strong>request</strong> (pedido) e uma <strong>response</strong> (resposta). A
+    partir do segredo, cada cliente deriva — para um dado canal e parte:</p>
+    <pre><code>endereço = HKDF(segredo, "bdd-addr|&lt;parte&gt;|&lt;canal&gt;")   → 64 chars hex
+chave    = HKDF(segredo, "bdd-key|&lt;parte&gt;|&lt;canal&gt;")    → 32 bytes</code></pre>
+    <p>O cliente cifra a mensagem com <strong>ChaCha20-Poly1305</strong> sob essa
+    chave e faz <code>PUT</code> nesse endereço. Como request e response derivam de
+    rótulos diferentes, eles vão parar em endereços não relacionados, sob chaves não
+    relacionadas — e é <em>por isso</em> que o servidor não consegue conectá-los. O
+    blob no fio é simplesmente:</p>
+    <pre><code>nonce(12 bytes) ‖ tag(16 bytes) ‖ texto cifrado</code></pre>
+    <h3>A ida e volta</h3>
+    <pre class="flow"><code>  Parte A (pede)               Servidor (cego)           Parte B (processa)
+  ───────────────              ───────────────           ──────────────────
+  sela o request, deriva addr
+  PUT /v1/slot/&lt;addrR&gt;  ───────▶ guarda o blob
+                                                  ◀─────── GET /v1/slot/&lt;addrR&gt;?wait
+                                 devolve o blob ──────────▶ abre + processa
+                                                  ◀─────── PUT /v1/slot/&lt;addrS&gt;
+  GET /v1/slot/&lt;addrS&gt;?wait ────▶ devolve o blob
+  abre a response ◀────────────────────────────────────  (o servidor não ligou nada)</code></pre>
+    <p class="muted">Ambos os <code>GET</code> podem fazer <strong>long-poll</strong>
+    com <code>?wait=N</code>: o servidor segura a requisição aberta até o slot ser
+    preenchido ou passarem N segundos, então a troca acontece ao vivo, sem ficar
+    consultando repetidamente.</p>
+  </div>
+</section>
+
+<section id="quickstart">
+  <div class="wrap">
+    <h2><span class="hash">#</span>Início rápido</h2>
+    <p>Localmente, o servidor embutido fala <strong>HTTP</strong> (o
+    <code>php -S</code> não faz TLS — em produção o TLS fica num proxy reverso ou
+    serviço onion na frente). Precisa de PHP 8.4+ e um MySQL/MariaDB.</p>
+    <pre><code># 1. Cria o schema (lê o .env do projeto) e sobe o servidor cego
+bin/bdd migrate
+bin/bdd serve --port 8080
+
+# 2. Um segredo compartilhado que as duas partes guardam (32 bytes, hex)
+export BDD_SECRET=$(bin/bdd keygen)
+
+# 3. Deixe um request e uma response no canal 0
+bin/bdd send --part request  --channel 0 --message "ping?" --port 8080
+bin/bdd send --part response --channel 0 --message "pong!" --port 8080
+
+# 4. Leia de volta
+bin/bdd recv --part request  --channel 0 --port 8080
+bin/bdd recv --part response --channel 0 --port 8080
+
+# Ou bloqueie até aparecer uma mensagem (long-poll do servidor)
+bin/bdd recv --part response --channel 0 --wait --timeout 60 --port 8080</code></pre>
+    <div class="note">Para falar com o serviço ao vivo, troque por
+    <code>--host darkgoldenrod-gnat-566022.hostingersite.com --port 443 --scheme https</code>.</div>
+  </div>
+</section>
+
+<section id="api">
+  <div class="wrap">
+    <h2><span class="hash">#</span>Referência da API</h2>
+    <p>Toda a superfície são quatro rotas. Cada <code>&lt;endereço&gt;</code> tem
+    exatamente 64 caracteres hex minúsculos; qualquer outra coisa é
+    <code>404</code>.</p>
+    <table>
+      <tr><th>Rota</th><th>Para quê</th><th>Respostas</th></tr>
+      <tr>
+        <td><span class="method get">GET</span> <span class="mono">/v1/health</span></td>
+        <td>Liveness + os baldes de expiração permitidos.</td>
+        <td><span class="pill">200</span> JSON</td>
+      </tr>
+      <tr>
+        <td><span class="method put">PUT</span> <span class="mono">/v1/slot/&lt;endereço&gt;</span><br>
+          <span class="muted mono">?ttl=N</span></td>
+        <td>Guarda um blob (escrita única). O <code>ttl</code> em segundos é
+          arredondado para cima até um balde; ausente usa o padrão do servidor.
+          Corpo de 1 byte até 1 MiB.</td>
+        <td><span class="pill">201</span> criado<br><span class="pill">409</span> ocupado<br><span class="pill">413</span> vazio/grande demais</td>
+      </tr>
+      <tr>
+        <td><span class="method get">GET</span> <span class="mono">/v1/slot/&lt;endereço&gt;</span><br>
+          <span class="muted mono">?wait=N</span></td>
+        <td>Busca um blob. <code>wait</code> faz long-poll por até N segundos (teto do servidor: 60).</td>
+        <td><span class="pill">200</span> blob<br><span class="pill">404</span> vazio/expirado</td>
+      </tr>
+      <tr>
+        <td><span class="method del">DELETE</span> <span class="mono">/v1/slot/&lt;endereço&gt;</span></td>
+        <td>Remove um slot (ex.: apagar após ler).</td>
+        <td><span class="pill">204</span> apagado<br><span class="pill">404</span> ausente</td>
+      </tr>
+    </table>
+
+    <h3>Expiração padronizada</h3>
+    <p>Toda entrada expira. Para não vazar um prazo de vida preciso por mensagem, o
+    <code>ttl</code> pedido é arredondado para cima até o <strong>balde</strong>
+    permitido mais próximo — <span class="mono">300, 3600, 86400, 604800</span>
+    (5 min / 1 h / 1 dia / 1 semana). A expiração é aplicada em toda leitura (um slot
+    expirado responde <code>404</code> e é apagado na hora). Os baldes são anunciados
+    pelo endpoint de health.</p>
+
+    <h3>Exemplos de requisição <span class="muted">(<code>curl</code> cru)</span></h3>
+    <pre><code>HOST=https://darkgoldenrod-gnat-566022.hostingersite.com
+
+# Health — a única chamada que não precisa de endereço derivado do segredo
+curl -s $HOST/v1/health
+# → {"status":"ok","ttl_buckets":[300,3600,86400,604800]}
+
+# Guarda um blob por 1 hora num endereço (derivado pelo cliente)
+ADDR=59050b4ec15597c9f30cb39a5ddab76b17de9fb50120cba7e67b904579d98ffe
+curl -s -X PUT --data-binary @blob.bin "$HOST/v1/slot/$ADDR?ttl=3600"
+
+# Long-poll nesse slot por até 30 s
+curl -s "$HOST/v1/slot/$ADDR?wait=30" -o blob.bin
+
+# Apaga
+curl -s -X DELETE "$HOST/v1/slot/$ADDR"</code></pre>
+    <div class="note warn">O endereço e o blob <strong>não</strong> são coisas que
+    você inventa — eles são <em>derivados</em> e <em>cifrados</em> a partir do segredo
+    compartilhado por um cliente. O derivador abaixo mostra exatamente como um
+    endereço é calculado.</div>
+  </div>
+</section>
+
+<section id="explorer">
+  <div class="wrap">
+    <h2><span class="hash">#</span>Experimente — derive um endereço de slot</h2>
+    <p>Isto roda inteiramente no seu navegador usando a Web Crypto API, com a mesma
+    derivação HKDF-SHA256 que os clientes (e o servidor PHP) usam. Cole um segredo de
+    32 bytes (64 caracteres hex), escolha a parte e o canal, e você obtém o endereço
+    exato sob o qual o servidor guardaria. Nada sai da página.</p>
+    <div class="tool card">
+      <label for="secret">Segredo raiz <span class="muted">(64 chars hex = 32 bytes)</span></label>
+      <input id="secret" class="mono" spellcheck="false"
+             value="000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f">
+      <div class="row">
+        <div>
+          <label for="part">Parte</label>
+          <select id="part"><option>request</option><option>response</option></select>
+        </div>
+        <div>
+          <label for="channel">Canal</label>
+          <input id="channel" class="mono" value="0">
+        </div>
+        <div>
+          <label>&nbsp;</label>
+          <button id="derive">Derivar →</button>
+        </div>
+      </div>
+      <div class="out">
+        <div class="muted" style="font-size:12px">endereço do slot</div>
+        <div id="addr" class="mono">—</div>
+      </div>
+      <div id="selfcheck" class="muted" style="font-size:13px;margin-top:10px"></div>
+    </div>
+    <p class="muted" style="font-size:13.5px">Com um endereço em mãos, a URL da
+    requisição é simplesmente
+    <code class="mono">https://&lt;host&gt;/v1/slot/&lt;endereço&gt;</code>. Derivar a
+    chave por mensagem e cifrar o payload exige ChaCha20-Poly1305, o que os clientes
+    de linha de comando fazem por você.</p>
+  </div>
+</section>
+
+<section id="clients">
+  <div class="wrap">
+    <h2><span class="hash">#</span>Exemplos de cliente</h2>
+    <p>Clientes executáveis ficam em <code>examples/</code>, em PHP, Python e C++.
+    Todos falam o mesmo protocolo e interoperam — uma mensagem selada por um é aberta
+    por qualquer outro. Cada um aceita os mesmos comandos:</p>
+    <p style="margin:18px 0">
+      <a href="bddphp-examples.zip" download
+         style="display:inline-block;background:var(--accent2);color:#06291a;
+                font-weight:700;padding:11px 20px;border-radius:8px;text-decoration:none">
+        ⬇ Baixar os exemplos (.zip)
+      </a>
+    </p>
+    <p class="muted">Pacote autocontido (clientes PHP/Python/C++ + a biblioteca
+    <code>src/</code> que o cliente PHP usa) — direto em
+    <a href="https://darkgoldenrod-gnat-566022.hostingersite.com/bddphp-examples.zip">https://darkgoldenrod-gnat-566022.hostingersite.com/bddphp-examples.zip</a>.
+    Já vêm prontos para falar com o serviço ao vivo:</p>
+    <pre><code>unzip bddphp-examples.zip
+python3 examples/python/selftest.py     # confere a cripto contra os vetores das RFCs
+HOST="--host darkgoldenrod-gnat-566022.hostingersite.com --port 443 --scheme https"
+python3 examples/python/example.py $HOST send-request 0 "ola da produção"
+php     examples/php/example.php     $HOST get-request  0</code></pre>
+    <pre><code>send-request | get-request | send-response | get-response
+wait-response   # long-poll numa response
+reply-upper     # worker: long-poll num request, processa e responde</code></pre>
+    <h3>O demo entre linguagens</h3>
+    <p>Um único script roda três <strong>RPCs cegas</strong> em que quem pede e quem
+    processa são linguagens diferentes. Cada worker espera um request, processa
+    (coloca o texto em maiúsculas — no lugar de um trabalho real) e posta a
+    resposta.</p>
+    <pre><code>bash examples/demo.sh</code></pre>
+    <pre><code>== Exchange 1 — Python asks, C++ processes (channel 1) ==
+  Python -&gt; request : 'hello from python'
+  Python &lt;- response: 'HELLO FROM PYTHON'  (computed by C++)
+
+== Exchange 2 — C++ asks, Python processes (channel 2) ==
+  C++ -&gt; request : 'hello from c++'
+  C++ &lt;- response: 'HELLO FROM C++'  (computed by Python)
+
+== Exchange 3 — PHP asks, Python processes (channel 3) ==
+  PHP -&gt; request : 'hello from php'
+  PHP &lt;- response: 'HELLO FROM PHP'  (computed by Python)</code></pre>
+    <div class="grid">
+      <div class="card"><h3>PHP <span class="muted">(nativo)</span></h3><p class="muted">Importa
+        <code>Bdd\Client</code> do pacote; criptografia pelos primitivos auditados do
+        PHP (OpenSSL <code>chacha20-poly1305</code> + <code>hash_hkdf</code>).</p></div>
+      <div class="card"><h3>Python e C++ <span class="muted">(do zero)</span></h3><p class="muted">Implementam
+        ChaCha20-Poly1305 e HKDF do zero (validados contra os vetores RFC 8439 / 5869)
+        para mostrar que o formato de fio é um contrato entre linguagens.</p></div>
+    </div>
+    <h3>Falando com o serviço ao vivo</h3>
+    <pre><code>php examples/php/example.php \
+    --host darkgoldenrod-gnat-566022.hostingersite.com --port 443 --scheme https \
+    send-request 0 "ola da produção"</code></pre>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    bddphp — Blind Dead Drop · servidor PHP 8.4 + MySQL, clientes em várias linguagens ·
+    veja <code>README.md</code> e <code>examples/</code> no repositório.
+  </div>
+</footer>
+
+<script>
+// Botões de copiar em todo <pre>.
+document.querySelectorAll("pre").forEach(pre => {
+  const b = document.createElement("button");
+  b.className = "copy"; b.textContent = "copiar";
+  b.onclick = () => {
+    navigator.clipboard.writeText(pre.innerText.replace(/\ncopiar$/, "")).then(() => {
+      b.textContent = "copiado"; setTimeout(() => b.textContent = "copiar", 1200);
+    });
+  };
+  pre.appendChild(b);
+});
+
+// --- derivador de endereço HKDF no navegador (igual ao servidor) ---
+const enc = new TextEncoder();
+function toHex(buf) {
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+function fromHex(hex) {
+  const clean = hex.trim().toLowerCase();
+  if (!/^[0-9a-f]*$/.test(clean) || clean.length % 2) throw new Error("hex inválido");
+  const out = new Uint8Array(clean.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(clean.substr(i * 2, 2), 16);
+  return out;
+}
+async function deriveAddress(secretBytes, part, channel) {
+  // HKDF-SHA256, salt vazio(=zeros), info = "bdd-addr|<parte>|<canal>", 32 bytes.
+  const key = await crypto.subtle.importKey("raw", secretBytes, "HKDF", false, ["deriveBits"]);
+  const info = enc.encode(`bdd-addr|${part}|${channel}`);
+  const salt = new Uint8Array(32);
+  const bits = await crypto.subtle.deriveBits(
+    { name: "HKDF", hash: "SHA-256", salt, info }, key, 256);
+  return toHex(bits);
+}
+
+const addrEl = document.getElementById("addr");
+async function run() {
+  try {
+    const secret = fromHex(document.getElementById("secret").value);
+    if (secret.length !== 32) throw new Error("o segredo deve ter exatamente 32 bytes (64 chars hex)");
+    const part = document.getElementById("part").value;
+    const channel = (document.getElementById("channel").value || "0").trim();
+    addrEl.textContent = await deriveAddress(secret, part, channel);
+    addrEl.className = "mono";
+  } catch (e) {
+    addrEl.textContent = e.message; addrEl.className = "mono bad";
+  }
+}
+document.getElementById("derive").onclick = run;
+
+// Autoteste ao carregar, contra um vetor conhecido, para você confiar no derivador.
+(async () => {
+  const sc = document.getElementById("selfcheck");
+  if (!window.crypto || !crypto.subtle) {
+    sc.innerHTML = "⚠ Web Crypto indisponível neste contexto — abra via https:// ou localhost.";
+    return;
+  }
+  const KNOWN = "59050b4ec15597c9f30cb39a5ddab76b17de9fb50120cba7e67b904579d98ffe";
+  try {
+    const got = await deriveAddress(
+      fromHex("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"),
+      "request", "0");
+    sc.innerHTML = got === KNOWN
+      ? '<span class="ok">✓ autoteste passou</span> — este derivador bate byte a byte com os clientes bddphp.'
+      : '<span class="bad">✗ autoteste falhou</span> — a derivação não corresponde à referência.';
+    await run();
+  } catch (e) { sc.textContent = "erro no autoteste: " + e.message; }
+})();
+</script>
+</body>
+</html>

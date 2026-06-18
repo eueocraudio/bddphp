@@ -1,0 +1,20 @@
+/vendor/
+composer.lock
+
+# local runtime artifacts
+*.pem
+/certs/
+.env
+.phpunit.result.cache
+.phpunit.cache/
+
+# compiled C++ examples
+/examples/cpp/example
+/examples/cpp/selftest
+
+# python example bytecode
+__pycache__/
+*.pyc
+
+# generated examples bundle (built by deploy.sh)
+/docs/bddphp-examples.zip

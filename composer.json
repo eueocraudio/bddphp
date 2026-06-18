@@ -1,0 +1,37 @@
+{
+    "name": "bdd/bddphp",
+    "description": "Blind Dead Drop — a blind HTTP dead-drop server in PHP 8.4 with MySQL storage",
+    "type": "project",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.4",
+        "ext-openssl": "*",
+        "ext-hash": "*",
+        "ext-pdo": "*",
+        "ext-pdo_mysql": "*",
+        "ext-curl": "*"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Bdd\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Bdd\\Tests\\": "tests/"
+        }
+    },
+    "bin": [
+        "bin/bdd"
+    ],
+    "scripts": {
+        "test": "phpunit",
+        "selftest": "php tests/selftest.php"
+    },
+    "config": {
+        "sort-packages": true
+    }
+}
